@@ -10,7 +10,7 @@ from flask_mail import Message
 from itsdangerous import SignatureExpired, BadSignature
 from app.func import trade_calc
 from itsdangerous import URLSafeTimedSerializer
-from app import login_manager, bcrypt, mail, db
+from app import login_manager, bcrypt, mail, db, cache
 from google import genai
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -22,25 +22,34 @@ main = Blueprint("main", __name__)
 
 load_dotenv()
 
-# limiter request for gemini api
-# storage_uri, can be commented out for local usage
+# Limiter request for gemini api, Storage_uri can be commented out for local usage
 limiter = Limiter(
     get_remote_address,
     storage_uri= os.getenv("REDIS_URL")
 )
 
-# email token
+# Email token
 def get_serializer():
     return URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
 
+# Cache key for automated trades on dashboard
+def automated_trade_cache_key():
+    if not current_user.is_authenticated:
+        return None
+    return f"user:{current_user.id}"
 
-login_manager.login_view = "login"
+# Cache key for trade query data
+def trade_cache_key():
+    if not current_user.is_authenticated:
+        return flash("Please log in to access this page.")
+    return f"user:{current_user.id}"
+
+login_manager.login_view = "main.login"
 @login_manager.user_loader
-def login_manager(user_id):
-
+def load_user(user_id):
     return db.session.get(User, int(user_id))
 
-# cache control
+# Cache control
 @main.after_request
 def add_cache_headers(response):
     response.headers["Cache-Control"] = "no-store"
@@ -53,7 +62,7 @@ def home():
 
 
 
-# user registation
+# User registation
 @main.route('/register', methods=['GET', 'POST'])
 def register():
     form = forms.RegistrationForm()
@@ -84,7 +93,7 @@ def register():
     return render_template('register.html', form=form)
 
 
-# confirm email verification token
+# Confirm email verification token
 @main.route('/confirm_email/<token>', methods=['GET', 'POST'])
 def confirm_email(token):
     try:
@@ -105,7 +114,7 @@ def confirm_email(token):
     return redirect(url_for('main.login'))
 
 
-# login page
+# Login page
 @main.route('/login', methods=['GET', 'POST'])
 def login():
     form = forms.LoginForm()
@@ -127,10 +136,11 @@ def login():
     return render_template('login.html', form=form)
 
 
-# dashboard
+# Dashboard
 @main.route('/dashboard', methods=['GET', 'POST'])
+@cache.cached(timeout=300, make_cache_key=automated_trade_cache_key)
 @login_required
-def dashboard():
+def dashboard():  
     username=current_user.username
 
     stmt = (
@@ -164,7 +174,7 @@ def dashboard():
 
    
 
-# logout
+# Logout
 @main.route('/logout', methods=['GET', 'POST'])
 @login_required
 def logout():
@@ -172,7 +182,7 @@ def logout():
     return redirect(url_for('main.login'))
 
 
-# adding entry
+# Adding entry
 @main.route('/entry', methods=['GET', 'POST'])
 @login_required
 def journal_trade_entry():
@@ -201,12 +211,13 @@ def journal_trade_entry():
             entry_id=new_entry.id
           
         )
-      
-
-        
+              
         db.session.add(new_entry)
         db.session.commit()
         flash("Entry saved", "success")
+
+        cache.delete(automated_trade_cache_key())
+        cache.delete(trade_cache_key())
 
         return redirect(url_for('main.trades', page_num=1)) 
     
@@ -214,8 +225,9 @@ def journal_trade_entry():
 
 
 
-# viewing all trades
+# View all trades
 @main.route('/trades')
+@cache.cached(timeout=300, make_cache_key=trade_cache_key)
 @login_required
 def trades():
     page = request.args.get('page', 1, type=int)
@@ -235,7 +247,7 @@ def trades():
 
 
 
-# edit trades
+# Edit trades
 @main.route('/trades/edit/<int:id>', methods=['GET', 'POST'])
 @login_required
 def edit_trades(id):
@@ -261,10 +273,14 @@ def edit_trades(id):
         db.session.commit()
 
         flash("Updated journal entry", "success")
+
+        cache.delete(automated_trade_cache_key())
+        cache.delete(trade_cache_key())
+
         return redirect(url_for('main.trades', page=page, q=q))
     
 
-    # pre fill with data
+    # Pre fill with data
     if request.method =='GET':
         form.entry_journal.data = trade.entry_journal
         form.stock_sym.data = trade.stock_sym
@@ -279,7 +295,7 @@ def edit_trades(id):
     return render_template('edit_trade.html', trade=trade, form=form, page=page, q=q)
 
 
-# review a users trade using gemini AI
+# Review a users trade using gemini AI
 @main.route('/trade/review/<int:id>', methods=['GET', 'POST'])
 @login_required
 @limiter.limit("17 per day")
@@ -291,7 +307,7 @@ def review_trade(id):
 
     client = genai.Client(api_key=gemini_key)
 
-    # making data readable for gemini
+    # Making data readable for gemini
     trade_data = {"symbol": trades.stock_sym,
                   "entry_date": trades.entry_date,
                   "exit_date": trades.exit_date,
@@ -304,7 +320,7 @@ def review_trade(id):
     
 
 
-    # prompt for gemini to review each trade for user
+    # Prompt for gemini to review each trade for user
     prompt = f"""
             You are a strict trade journal auditor. Analyze only what is explicitly provided in the trade data below. Do not assume, infer, or invent any information.
 
@@ -373,14 +389,14 @@ def review_trade(id):
         if words.text:
             trade_response += words.text
 
-    # cleaning response for readability 
+    # Cleaning response for readability 
     trade_response = trade_response.replace("\n", "<br>")
 
 
     return render_template('trade_review.html', trade_response=trade_response)
 
 
-# delete a trade
+# Delete a trade
 @main.route('/trade/delete/<int:id>', methods=['GET', 'POST'])
 @login_required
 def delete_trade(id):
@@ -399,6 +415,10 @@ def delete_trade(id):
         db.session.delete(post_to_delete)
         db.session.commit()
         flash("Trade has been deleted", "success")
+
+        cache.delete(automated_trade_cache_key())
+        cache.delete(trade_cache_key())
+
         return redirect(url_for('main.trades', page=page, q=q))
 
     except:
@@ -407,7 +427,7 @@ def delete_trade(id):
     
 
 
-# settings
+# Settings
 @main.route('/dashboard/settings', methods=['GET', 'POST'])
 @login_required
 def settings():
@@ -417,7 +437,7 @@ def settings():
 
 
 
-# deleting a users account along with all files associated with user  
+# Deleting a users account along with all files associated with user  
 @main.route('/dashboard/settings/delete-user', methods=['GET', 'POST'])
 @login_required
 def delete_user():
@@ -435,7 +455,7 @@ def delete_user():
     return render_template('delete_user.html', form=form)
     
 
-# change password
+# Change password
 @main.route('/dashboard/settings/change-password', methods=['GET', 'POST'])
 @login_required
 def update_password():
@@ -454,7 +474,7 @@ def update_password():
 
 
 
-# change username
+# Change username
 @main.route('/settings/change-username', methods=['GET', 'POST'])
 @login_required
 def update_username():
@@ -471,7 +491,7 @@ def update_username():
     return render_template('update_username.html', form=form)
 
 
-# password reset page
+# Password reset page
 @main.route('/password-reset', methods=['GET', 'POST'])
 def password_reset():
     form = forms.PassWordResetRequestForm()
@@ -520,7 +540,7 @@ def password_reset():
 
 
 
-# password reset email verification 
+# Password reset email verification 
 @main.route('/password-reset/<token>', methods=['GET', 'POST'])
 def password_reset_confirm(token):
     try:

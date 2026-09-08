@@ -8,7 +8,7 @@ class Config:
     SECRET_KEY = os.getenv("SECRET_KEY")
     SQLALCHEMY_TRACK_MODIFICATIONS = os.getenv("SQLALCHEMY_TRACK_MODIFICATIONS")
 
-    # mail server info
+    # Mail server info
     MAIL_SERVER = os.getenv("MAIL_SERVER")
     MAIL_PORT = int(os.getenv("MAIL_PORT", 587))
     MAIL_USERNAME = os.getenv("MAIL_USERNAME")
@@ -20,6 +20,8 @@ class Config:
     # Gemini Api Key
     GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
+    # Cache type
+    CACHE_TYPE = "SimpleCache"
 
 class TestConfig(Config):
     TESTING = True
@@ -27,7 +29,6 @@ class TestConfig(Config):
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     SECRET_KEY = "thisisscretkey"
     MAIL_DEFAULT_SENDER = "test@test.com"
-
 
 class DevelopmentConfig(Config):
     DEBUG = True

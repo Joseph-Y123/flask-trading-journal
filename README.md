@@ -39,6 +39,7 @@ A full stack web application built with Flask that helps traders track, review, 
 - Flask-Migrate
 - Flask-Mail
 - Flask-Limiter
+- Flask-Caching
 - Redis
 
 ### Database
