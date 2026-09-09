@@ -41,8 +41,8 @@ def automated_trade_cache_key():
 # Cache key for trade query data
 def trade_cache_key():
     if not current_user.is_authenticated:
-        return flash("Please log in to access this page.")
-    return f"user:{current_user.id}"
+        return None
+    return f"trade_user:{current_user.id}"
 
 login_manager.login_view = "main.login"
 @login_manager.user_loader
@@ -59,7 +59,6 @@ def add_cache_headers(response):
 @main.route('/')
 def home():
     return render_template('home.html')
-
 
 
 # User registation
@@ -135,7 +134,6 @@ def login():
 
     return render_template('login.html', form=form)
 
-
 # Dashboard
 @main.route('/dashboard', methods=['GET', 'POST'])
 @cache.cached(timeout=300, make_cache_key=automated_trade_cache_key)
@@ -154,7 +152,6 @@ def dashboard():
     
     # method to handle calculations for trades and returns the values in a dict
     stats = trade_calc(trades)
-
   
     return render_template('dashboard.html', 
                            wins=stats['wins'], 
@@ -242,7 +239,6 @@ def trades():
     else:
         posts = TradeEntry.query.filter(TradeEntry.user_id == current_user.id).order_by(TradeEntry.entry_id.asc()).paginate(page=page, per_page=5, error_out=True)
               
-   
     return render_template('view_trades.html', posts=posts, page=page, q=q)
 
 
@@ -279,7 +275,6 @@ def edit_trades(id):
 
         return redirect(url_for('main.trades', page=page, q=q))
     
-
     # Pre fill with data
     if request.method =='GET':
         form.entry_journal.data = trade.entry_journal
@@ -291,7 +286,6 @@ def edit_trades(id):
         form.exit_date.data = trade.exit_date
         form.status.data = trade.status
             
-    
     return render_template('edit_trade.html', trade=trade, form=form, page=page, q=q)
 
 
@@ -316,8 +310,6 @@ def review_trade(id):
                   "exit_price": trades.price_exit,
                   "journal": trades.entry_journal,
                   "status": trades.status}
-
-    
 
 
     # Prompt for gemini to review each trade for user
@@ -382,7 +374,6 @@ def review_trade(id):
     )
 
 
-
     trade_response = ""
 
     for words in response:
@@ -391,7 +382,6 @@ def review_trade(id):
 
     # Cleaning response for readability 
     trade_response = trade_response.replace("\n", "<br>")
-
 
     return render_template('trade_review.html', trade_response=trade_response)
 
@@ -469,7 +459,6 @@ def update_password():
         flash("Password updated successfully", "success")
         return redirect(url_for('main.update_password'))
     
-    
     return render_template('update_password.html', form=form)
 
 
@@ -485,8 +474,6 @@ def update_username():
         db.session.commit()
         flash("Username updated", "success")
         return redirect(url_for('main.update_username'))
-
-
 
     return render_template('update_username.html', form=form)
 
@@ -535,7 +522,6 @@ def password_reset():
         else:
             flash("We're sorry. We weren't able to identify you given the information provided.")
     
-    
     return render_template('password_reset.html', form=form)
 
 
@@ -572,6 +558,5 @@ def password_reset_confirm(token):
         flash('Password has been reset')
         return redirect(url_for('main.login'))
   
-
     return render_template('password_reset_page.html', form=form)
     
