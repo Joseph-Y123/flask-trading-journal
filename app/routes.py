@@ -131,7 +131,7 @@ def login():
 
 # Dashboard
 @main.route('/dashboard', methods=['GET', 'POST'])
-@login_required
+#@login_required
 #@cache.cached(timeout=300, make_cache_key=automated_trade_cache_key)
 def dashboard():  
     username=current_user.username
@@ -167,7 +167,7 @@ def dashboard():
 
 # Logout
 @main.route('/logout', methods=['GET', 'POST'])
-@login_required
+#@login_required
 def logout():
     logout_user()
     return redirect(url_for('main.login'))
@@ -175,7 +175,7 @@ def logout():
 
 # Adding entry
 @main.route('/entry', methods=['GET', 'POST'])
-@login_required
+#@login_required
 def journal_trade_entry():
     form = forms.EntryForm()
 
@@ -210,7 +210,7 @@ def journal_trade_entry():
 
 # View all trades
 @main.route('/trades')
-@login_required
+#@login_required
 def trades():
     page = request.args.get('page', 1, type=int)
     q = request.args.get("q", "")
@@ -232,7 +232,7 @@ def trades():
 
 # Edit trades
 @main.route('/trades/edit/<int:id>', methods=['GET', 'POST'])
-@login_required
+#@login_required
 def edit_trades(id):
     trade = db.session.get(TradeEntry, id)
     page = request.args.get('page', 1, type=int)
