@@ -44,7 +44,7 @@ def entries(app, user):
         posts = Entry(
             created_time=date.today(),
             user=user,
-            trade=TradeEntry(
+            trade_info=TradeEntry(
             stock_sym="AAPL",
             price_entry=125.25,
             price_exit=136.9,
