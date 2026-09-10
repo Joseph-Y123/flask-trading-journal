@@ -40,14 +40,11 @@ def user(app):
 @pytest.fixture()
 def entries(app, user):
     with app.app_context():
-        entry = Entry(
+   
+        posts = Entry(
             created_time=date.today(),
-            user_id=user.id
-        )
-        db.session.add(entry)
-        db.session.commit()
-
-        posts = TradeEntry(
+            user=user,
+            trade=TradeEntry(
             stock_sym="AAPL",
             price_entry=125.25,
             price_exit=136.9,
@@ -56,9 +53,7 @@ def entries(app, user):
             exit_date=date(2026, 4, 21),
             status="Long",
             entry_journal="good",
-            user_id=user.id,
-            entry_id=entry.id
-
+            )
         )
 
         db.session.add(posts)

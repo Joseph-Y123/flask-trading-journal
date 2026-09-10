@@ -132,7 +132,7 @@ def login():
 # Dashboard
 @main.route('/dashboard', methods=['GET', 'POST'])
 @login_required
-@cache.cached(timeout=300, make_cache_key=automated_trade_cache_key)
+#@cache.cached(timeout=300, make_cache_key=automated_trade_cache_key)
 def dashboard():  
     username=current_user.username
 
@@ -181,7 +181,6 @@ def journal_trade_entry():
 
     if form.validate_on_submit():
     
-
         new_entry=Entry(
             created_time=date.today(),
             user_id=current_user.id,
