@@ -10,7 +10,7 @@ class User(db.Model, UserMixin):
     username = db.Column(db.String(20), nullable=False, unique=True)
     password = db.Column(db.String(128), nullable=False)
     email = db.Column(db.String(120), nullable=False, unique=True)
-    entries = db.relationship('Entry', back_populates='parent',uselist=False, cascade='all, delete')
+    entries = db.relationship('Entry', back_populates='user', cascade='all, delete-orphan')
     email_verified = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=db.func.now())
 
@@ -22,8 +22,8 @@ class Entry(db.Model):
     updated_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)) 
     
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)   
-    parent = db.relationship('User', back_populates='entries')              
-    trade_info = db.relationship('TradeEntry', back_populates='parent', uselist=False, cascade='all, delete')    
+    user = db.relationship('User', back_populates='entries')              
+    trade_info = db.relationship('TradeEntry', back_populates='entry', uselist=False, cascade='all, delete-orphan')    
 
 
 # Database for trade info
@@ -39,7 +39,12 @@ class TradeEntry(db.Model):
     status = db.Column(db.String, nullable=True)
     
 
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     entry_id = db.Column(db.Integer, db.ForeignKey('entry.id'), nullable=False, unique=True)
-    parent = db.relationship('Entry', back_populates='trade_info')
+    entry = db.relationship('Entry', back_populates='trade_info')
 
+    __table_args__ = (
+    db.UniqueConstraint(
+        'entry_id',
+        name='uq_trade_entry_entry_id'
+    ),
+)

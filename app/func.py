@@ -33,10 +33,10 @@ def trade_calc(trades):
         curr_date = t.exit_date
         if t.exit_date is not None and t.price_exit is not None:
 
-            if t.status == 'long':
+            if t.status.lower() == 'long':
                 trade_pnl = float((t.price_exit - t.price_entry) * t.qty)
         
-            elif t.status == 'short':
+            elif t.status.lower() == 'short':
                 trade_pnl = float((t.price_entry - t.price_exit) * t.qty)
             else:
                 trade_pnl = 0

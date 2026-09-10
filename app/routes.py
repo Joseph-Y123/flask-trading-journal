@@ -38,11 +38,6 @@ def automated_trade_cache_key():
         return None
     return f"user:{current_user.id}"
 
-# Cache key for trade query data
-def trade_cache_key():
-    if not current_user.is_authenticated:
-        return None
-    return f"trade_user:{current_user.id}"
 
 login_manager.login_view = "main.login"
 @login_manager.user_loader
@@ -136,8 +131,8 @@ def login():
 
 # Dashboard
 @main.route('/dashboard', methods=['GET', 'POST'])
-@cache.cached(timeout=300, make_cache_key=automated_trade_cache_key)
 @login_required
+@cache.cached(timeout=300, make_cache_key=automated_trade_cache_key)
 def dashboard():  
     username=current_user.username
 
@@ -148,7 +143,6 @@ def dashboard():
         .order_by(TradeEntry.exit_date.asc())
     )
     trades = db.session.scalars(stmt).all()
-
     
     # method to handle calculations for trades and returns the values in a dict
     stats = trade_calc(trades)
@@ -187,15 +181,11 @@ def journal_trade_entry():
 
     if form.validate_on_submit():
     
+
         new_entry=Entry(
             created_time=date.today(),
-            user_id=current_user.id
-        )
-
-        db.session.add(new_entry)
-        db.session.commit()
-
-        new_entry.trade_info=TradeEntry(
+            user_id=current_user.id,
+            trade_info=TradeEntry(
             entry_journal=form.entry_journal.data,
             stock_sym=form.stock_sym.data,
             price_entry=form.price_entry.data,
@@ -204,9 +194,7 @@ def journal_trade_entry():
             entry_date=form.entry_date.data,
             exit_date=form.exit_date.data,
             status=form.status.data,
-            user_id=current_user.id,
-            entry_id=new_entry.id
-          
+            )
         )
               
         db.session.add(new_entry)
@@ -214,7 +202,6 @@ def journal_trade_entry():
         flash("Entry saved", "success")
 
         cache.delete(automated_trade_cache_key())
-        cache.delete(trade_cache_key())
 
         return redirect(url_for('main.trades', page_num=1)) 
     
@@ -224,20 +211,21 @@ def journal_trade_entry():
 
 # View all trades
 @main.route('/trades')
-@cache.cached(timeout=300, make_cache_key=trade_cache_key)
 @login_required
 def trades():
     page = request.args.get('page', 1, type=int)
     q = request.args.get("q", "")
 
+    query = TradeEntry.query.join(TradeEntry.entry).filter(Entry.user_id == current_user.id)
+
     if q:
-        posts = TradeEntry.query.filter(TradeEntry.user_id == current_user.id,
-                                            or_(TradeEntry.stock_sym.ilike('%' + q + '%'),
-                                            TradeEntry.status.ilike('%' + q + '%')
-                                            )).order_by(TradeEntry.entry_date.asc()).paginate(page=page, per_page=5, error_out=True)
+        posts = query.filter(
+            or_(TradeEntry.stock_sym.ilike('%' + q + '%'),
+            TradeEntry.status.ilike('%' + q + '%')
+            )).order_by(TradeEntry.entry_date.asc()).paginate(page=page, per_page=5, error_out=True)
     
     else:
-        posts = TradeEntry.query.filter(TradeEntry.user_id == current_user.id).order_by(TradeEntry.entry_id.asc()).paginate(page=page, per_page=5, error_out=True)
+        posts = query.order_by(TradeEntry.entry_id.asc()).paginate(page=page, per_page=5, error_out=True)
               
     return render_template('view_trades.html', posts=posts, page=page, q=q)
 
@@ -253,9 +241,10 @@ def edit_trades(id):
 
     if trade is None:
         return redirect(url_for('main.dashboard'))
-    entry = trade.parent
+    
+    entry = trade.entry
 
-    if current_user.id != trade.user_id:
+    if current_user.id != entry.user_id:
         flash("You do not have permission to edit entry", "danger")
         return redirect(url_for('main.home'))
      
@@ -271,7 +260,6 @@ def edit_trades(id):
         flash("Updated journal entry", "success")
 
         cache.delete(automated_trade_cache_key())
-        cache.delete(trade_cache_key())
 
         return redirect(url_for('main.trades', page=page, q=q))
     
@@ -390,24 +378,25 @@ def review_trade(id):
 @main.route('/trade/delete/<int:id>', methods=['GET', 'POST'])
 @login_required
 def delete_trade(id):
-    post_to_delete = db.session.get(TradeEntry, id)
+    trade = db.session.get(TradeEntry, id)
     page = request.args.get('page', 1, type=int)
     q = request.args.get("q")
     
-    if post_to_delete is None:
+    if trade is None:
         abort(404)
 
-    if post_to_delete.user_id != current_user.id:
+    entry = trade.entry
+
+    if entry.user_id != current_user.id:
         flash("You do not have permission")
         logout_user()
     
     try: 
-        db.session.delete(post_to_delete)
+        db.session.delete(entry)
         db.session.commit()
         flash("Trade has been deleted", "success")
 
         cache.delete(automated_trade_cache_key())
-        cache.delete(trade_cache_key())
 
         return redirect(url_for('main.trades', page=page, q=q))
 
