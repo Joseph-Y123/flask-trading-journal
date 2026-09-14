@@ -22,10 +22,9 @@ main = Blueprint("main", __name__)
 
 load_dotenv()
 
-# Limiter request for gemini api, Storage_uri can be commented out for local usage
+# Limiter request for gemini api
 limiter = Limiter(
-    get_remote_address,
-    storage_uri= os.getenv("REDIS_URL")
+    get_remote_address
 )
 
 # Email token
@@ -131,7 +130,7 @@ def login():
 
 # Dashboard
 @main.route('/dashboard', methods=['GET', 'POST'])
-#@login_required
+@login_required
 @cache.cached(timeout=300, make_cache_key=automated_trade_cache_key)
 def dashboard():  
     username=current_user.username
@@ -167,7 +166,7 @@ def dashboard():
 
 # Logout
 @main.route('/logout', methods=['GET', 'POST'])
-#@login_required
+@login_required
 def logout():
     logout_user()
     return redirect(url_for('main.login'))
@@ -175,7 +174,7 @@ def logout():
 
 # Adding entry
 @main.route('/entry', methods=['GET', 'POST'])
-#@login_required
+@login_required
 def journal_trade_entry():
     form = forms.EntryForm()
 
@@ -210,7 +209,7 @@ def journal_trade_entry():
 
 # View all trades
 @main.route('/trades')
-#@login_required
+@login_required
 def trades():
     page = request.args.get('page', 1, type=int)
     q = request.args.get("q", "")
@@ -232,7 +231,7 @@ def trades():
 
 # Edit trades
 @main.route('/trades/edit/<int:id>', methods=['GET', 'POST'])
-#@login_required
+@login_required
 def edit_trades(id):
     trade = db.session.get(TradeEntry, id)
     page = request.args.get('page', 1, type=int)
@@ -276,7 +275,7 @@ def edit_trades(id):
     return render_template('edit_trade.html', trade=trade, form=form, page=page, q=q)
 
 
-# Review a users trade using gemini AI
+# Review a users trade using Gemini AI
 @main.route('/trade/review/<int:id>', methods=['GET', 'POST'])
 @login_required
 @limiter.limit("17 per day")
@@ -284,6 +283,7 @@ def edit_trades(id):
 def review_trade(id):
     trades = db.session.get(TradeEntry, id)
     gemini_key = current_app.config['GEMINI_API_KEY']
+    gemini_model = current_app.config['GEMINI_MODEL']
     
 
     client = genai.Client(api_key=gemini_key)
@@ -354,23 +354,27 @@ def review_trade(id):
             """
 
 
- 
-    response = client.models.generate_content_stream(
-        model = "gemini-2.5-flash",
-        contents = prompt
-    )
+    try:
+        response = client.models.generate_content_stream(
+            model = gemini_model,
+            contents = prompt
+        )
 
 
-    trade_response = ""
+        trade_response = ""
 
-    for words in response:
-        if words.text:
-            trade_response += words.text
+        for words in response:
+            if words.text:
+                trade_response += words.text
 
-    # Cleaning response for readability 
-    trade_response = trade_response.replace("\n", "<br>")
+        # Cleaning response for readability 
+        trade_response = trade_response.replace("\n", "<br>")
 
-    return render_template('trade_review.html', trade_response=trade_response)
+        return render_template('trade_review.html', trade_response=trade_response)
+
+    except:
+        flash("Gemini at this time cannot review your trades, please try again at a later time")
+        return redirect(url_for('main.trades'))
 
 
 # Delete a trade

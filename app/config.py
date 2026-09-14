@@ -6,7 +6,7 @@ load_dotenv()
 class Config:
     SQLALCHEMY_DATABASE_URI = os.getenv("SQLALCHEMY_DATABASE_URI")
     SECRET_KEY = os.getenv("SECRET_KEY")
-    SQLALCHEMY_TRACK_MODIFICATIONS = os.getenv("SQLALCHEMY_TRACK_MODIFICATIONS")
+    SQLALCHEMY_TRACK_MODIFICATIONS = os.getenv("SQLALCHEMY_TRACK_MODIFICATIONS", "False")
 
     # Mail server info
     MAIL_SERVER = os.getenv("MAIL_SERVER")
@@ -19,9 +19,14 @@ class Config:
   
     # Gemini Api Key
     GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+    # Gemini Model
+    GEMINI_MODEL = os.getenv('GEMINI_MODEL')
 
     # Cache type
-    CACHE_TYPE = "SimpleCache"
+    CACHE_TYPE = "RedisCache"
+    CACHE_REDIS_URL = os.getenv('CACHE_REDIS_URL')
+
+    RATELIMIT_STORAGE_URI = os.getenv('REDIS_URL')
 
 class TestConfig(Config):
     TESTING = True

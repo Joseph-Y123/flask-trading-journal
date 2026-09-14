@@ -15,10 +15,9 @@ mail = Mail()
 cache = Cache()
 
 # Switch between development, testing, and production with config_class
-def create_app(config_class=DevelopmentConfig):
+def create_app(config_class=ProductionConfig):
     app = Flask(__name__)
     app.config.from_object(config_class)
-    
     
     db.init_app(app)
     bcrypt.init_app(app)
@@ -26,12 +25,10 @@ def create_app(config_class=DevelopmentConfig):
     login_manager.init_app(app)
     mail.init_app(app)
     cache.init_app(app)
-
     
     from app.routes import main, limiter
     app.register_blueprint(main)
     limiter.init_app(app)
     
- 
     return app
 
